@@ -4,9 +4,8 @@ import email
 import imaplib
 from pathlib import Path
 from typing import Optional, List
-from fastapi import FastAPI, Header, HTTPException, Query
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,11 +16,6 @@ from backend.config import load_settings
 from backend import parser
 
 app = FastAPI(title="OTP Share Vercel")
-
-# Mount static folder
-static_dir = BASE_DIR / "static"
-if static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # In-memory store for serverless instance
 memory_cache = {
@@ -55,11 +49,9 @@ def fetch_from_gmail():
         client.login(user, password)
         client.select("INBOX", readonly=True)
 
-        # Get total messages count
         status, res = client.status("INBOX", "(MESSAGES)")
         if status == "OK" and res and res[0]:
             total = int(res[0].decode().split()[2].rstrip(")"))
-            # Fetch headers of the last 15 emails to find Indiabulls
             start = max(1, total - 14)
             status, fetch_data = client.fetch(f"{start}:{total}", "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID)])")
             
@@ -73,7 +65,6 @@ def fetch_from_gmail():
                             seq = item[0].decode().split()[0]
                             matching_seqs.append(seq)
 
-            # If matching sequences found, fetch their full RFC822 bodies (newest first)
             for seq in reversed(matching_seqs[-5:]):
                 try:
                     s_res, m_data = client.fetch(seq, "(RFC822)")
@@ -96,14 +87,9 @@ def fetch_from_gmail():
 
     return results
 
-@app.get("/")
-async def serve_home():
-    index_file = BASE_DIR / "static" / "index.html"
-    if index_file.exists():
-        return FileResponse(str(index_file))
-    return {"message": "OTP Share Vercel Running"}
-
 @app.get("/api/status")
+@app.get("/status")
+@app.get("/")
 async def get_status():
     cfg = load_settings()
     user = os.getenv("EMAIL_USER") or cfg.get("EMAIL_USER", "")
@@ -117,6 +103,7 @@ async def get_status():
     }
 
 @app.get("/api/otps")
+@app.get("/otps")
 async def get_otps(
     service: Optional[str] = Query(None),
     pin: Optional[str] = Header(None, alias="X-OTP-PIN")
@@ -138,6 +125,7 @@ async def get_otps(
     }
 
 @app.get("/api/otps/{otp_id}")
+@app.get("/otps/{otp_id}")
 async def get_otp_detail(otp_id: int, pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
     check_pin_auth(pin)
     for item in memory_cache["otps"]:
@@ -146,6 +134,7 @@ async def get_otp_detail(otp_id: int, pin: Optional[str] = Header(None, alias="X
     raise HTTPException(status_code=404, detail="OTP message not found.")
 
 @app.post("/api/check-now")
+@app.post("/check-now")
 async def check_now(pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
     check_pin_auth(pin)
     fetched = fetch_from_gmail()
@@ -154,6 +143,7 @@ async def check_now(pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
     return {"success": True, "new_count": len(fetched), "latest": fetched[0] if fetched else None}
 
 @app.get("/api/config")
+@app.get("/config")
 async def get_config():
     cfg = load_settings()
     return {
@@ -170,6 +160,7 @@ async def get_config():
     }
 
 @app.get("/api/stream")
+@app.get("/stream")
 async def sse_stream():
     async def event_generator():
         yield f"event: status\ndata: {{\"status\": \"connected\"}}\n\n"
@@ -180,6 +171,7 @@ class TestOTPRequest(BaseModel):
     code: Optional[str] = None
 
 @app.post("/api/test-otp")
+@app.post("/test-otp")
 async def test_otp(req: TestOTPRequest):
     import random
     from datetime import datetime

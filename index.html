@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OTP Share - Live Mailbox & OTP Receiver</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="container header-inner">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="/" class="brand">
+          <div class="brand-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+          </div>
+          <div>
+            <div class="brand-title">OTP Share</div>
+          </div>
+        </a>
+
+        <!-- Live Status Pill -->
+        <div class="status-pill" id="status-pill">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Connecting...</span>
+          <span id="monitored-email" style="color: var(--text-muted); font-size: 0.775rem;"></span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" id="check-now-btn" onclick="triggerCheckNow()" title="Fetch now from IMAP">
+          ↻ Check Now
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="sendTestOtp()" title="Generate a test OTP email">
+          🧪 Test OTP
+        </button>
+        <button class="btn btn-ghost btn-sm" id="toggle-popup-btn" onclick="toggleAutoPopup()" title="Toggle auto popup when OTP arrives">
+          ⚡ Popup ON
+        </button>
+        <button class="btn btn-ghost btn-sm" id="toggle-sound-btn" title="Toggle audio chime">
+          🔔 Sound ON
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="openSettingsModal()" title="Mail configuration">
+          ⚙️ Settings
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Banner for Unconfigured State -->
+  <div class="banner warning" id="unconfigured-banner" style="display: none;">
+    <div class="container banner-inner">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span>⚠️</span>
+        <span>Your mail account is not connected yet. Add your Gmail/Outlook credentials to start receiving OTPs.</span>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openSettingsModal()">
+        Configure Mail Account ➔
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Hero Card: Latest OTP -->
+    <section class="hero-card" id="hero-card">
+      <div class="hero-empty">
+        <div class="hero-empty-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect width="20" height="16" x="2" y="4" rx="2"/>
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+        </div>
+        <h3 style="margin-bottom: 6px;">Connecting to OTP stream...</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Please wait a moment...</p>
+      </div>
+    </section>
+
+    <!-- App Filter Chips -->
+    <div class="filter-chips-wrapper">
+      <span class="filter-label">App Filter:</span>
+      <button class="filter-chip active" id="chip-indiabulls" onclick="setAppFilter('indiabulls')">
+        🔥 Indiabulls (Dhani)
+      </button>
+      <button class="filter-chip" id="chip-all" onclick="setAppFilter('all')">
+        🌐 All Services
+      </button>
+      <button class="filter-chip" id="chip-google" onclick="setAppFilter('google')">
+        Google
+      </button>
+    </div>
+
+    <!-- Toolbar: Search & Actions -->
+    <div class="feed-toolbar">
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search OTP, service or sender..." autocomplete="off">
+      </div>
+
+      <div class="toolbar-stats">
+        <span id="otp-count">0 messages</span>
+        <span>•</span>
+        <button class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="clearAllOtps()">
+          Clear All
+        </button>
+      </div>
+    </div>
+
+    <!-- OTP Feed Cards -->
+    <section class="feed-list" id="otp-feed">
+      <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+        Loading messages...
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Incoming OTP Front Modal Popup -->
+  <div class="modal-overlay" id="new-otp-modal" style="z-index: 100;">
+    <div class="popup-card">
+      <div class="popup-glow-ring">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+      </div>
+      <div class="service-badge" id="popup-service-badge" style="margin-bottom: 8px;">
+        Indiabulls
+      </div>
+      <h2 style="font-size: 1.25rem; font-weight: 700; color: #ffffff; margin-bottom: 4px;" id="popup-subject">
+        New OTP Received
+      </h2>
+      <p style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 16px;" id="popup-sender">
+        From: Indiabulls
+      </p>
+      
+      <div class="popup-otp-display" id="popup-otp-code" title="Click to copy code" onclick="copyPopupOtp()">
+        ------
+      </div>
+      
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 18px; flex-wrap: wrap;">
+        <button class="btn btn-primary" id="popup-copy-btn" onclick="copyPopupOtp()" style="flex: 1; padding: 12px; min-width: 140px; font-weight: 700;">
+          📋 Copy OTP
+        </button>
+        <button class="btn btn-secondary" id="popup-view-email-btn" onclick="openEmailFromPopup()" style="padding: 12px;">
+          ✉️ View Mail
+        </button>
+        <button class="btn btn-ghost" onclick="closeModal('new-otp-modal')" style="padding: 12px;">
+          ✕ Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Detail Modal -->
+  <div class="modal-overlay" id="email-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Email Message Details</div>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('email-modal')">✕</button>
+      </div>
+      <div class="modal-body" id="email-modal-body">
+        <!-- Injected via app.js -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('email-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <div class="modal-title">⚙️ Configure Mail Account</div>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('settings-modal')">✕</button>
+      </div>
+
+      <!-- Settings Tabs -->
+      <div class="modal-tabs">
+        <button type="button" class="modal-tab-btn active" id="tab-btn-connect" onclick="switchSettingsTab('connect')">
+          🔌 Connect Account
+        </button>
+        <button type="button" class="modal-tab-btn" id="tab-btn-advanced" onclick="switchSettingsTab('advanced')">
+          ⚙️ Advanced Settings
+        </button>
+        <button type="button" class="modal-tab-btn" id="tab-btn-help" onclick="switchSettingsTab('help')">
+          💡 Google Password Guide
+        </button>
+      </div>
+
+      <form id="settings-form">
+        <!-- Tab 1: Connect Account -->
+        <div class="modal-body" id="tab-content-connect">
+          <div class="form-group">
+            <label>Select Provider</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="applyProviderPreset('gmail')">Gmail</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="applyProviderPreset('outlook')">Outlook / Hotmail</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="applyProviderPreset('yahoo')">Yahoo Mail</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="applyProviderPreset('icloud')">iCloud</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="cfg-email">Personal Email Address *</label>
+            <input type="email" id="cfg-email" placeholder="yourname@gmail.com" required>
+            <span class="form-help">The mailbox where your OTP & verification emails arrive.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="cfg-pass">App Password *</label>
+            <input type="password" id="cfg-pass" placeholder="16-character App Password (e.g. abcd efgh ijkl mnop)">
+            <span class="form-help">
+              Use a 16-character <strong>App Password</strong>.
+              <a href="javascript:void(0)" onclick="switchSettingsTab('help')" style="color: var(--accent); font-weight: 600;">
+                Can't find or create App Password? Click here ↗
+              </a>
+            </span>
+          </div>
+
+          <div class="form-group">
+            <label for="cfg-sender-filter">App / Service Filter</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="cfg-sender-filter" placeholder="e.g. indiabulls, dhani (or leave empty for all)">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('cfg-sender-filter').value='indiabulls,dhani'">🔥 Indiabulls</button>
+              <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('cfg-sender-filter').value=''">All</button>
+            </div>
+            <span class="form-help">Only capture emails matching this app/sender (e.g. <code>indiabulls,dhani</code>).</span>
+          </div>
+        </div>
+
+        <!-- Tab 2: Advanced Settings -->
+        <div class="modal-body" id="tab-content-advanced" style="display: none;">
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="cfg-host">IMAP Host</label>
+              <input type="text" id="cfg-host" value="imap.gmail.com" required>
+            </div>
+            <div class="form-group">
+              <label for="cfg-port">IMAP Port</label>
+              <input type="number" id="cfg-port" value="993" required>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label for="cfg-folder">Folder / Label to Watch</label>
+              <input type="text" id="cfg-folder" value="INBOX">
+              <span class="form-help">Default: INBOX (or a Gmail label like OTP)</span>
+            </div>
+            <div class="form-group">
+              <label for="cfg-interval">Check Interval (seconds)</label>
+              <input type="number" id="cfg-interval" min="2" max="60" value="5">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="cfg-keywords">Filter Keywords (comma-separated)</label>
+            <input type="text" id="cfg-keywords" value="otp,verification,code,login,security,one-time,confirm,verify,auth,pin">
+            <span class="form-help">Only emails containing these keywords will be captured.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="cfg-pin">Website Access PIN (Optional)</label>
+            <input type="password" id="cfg-pin" placeholder="Leave empty for public access">
+            <span class="form-help">Require visitors to enter this PIN before viewing OTPs.</span>
+          </div>
+
+          <div class="form-group" style="flex-direction: row; align-items: center; gap: 8px;">
+            <input type="checkbox" id="cfg-markread" style="width: auto;">
+            <label for="cfg-markread" style="margin-bottom: 0; cursor: pointer;">
+              Mark fetched OTP emails as read in your email inbox
+            </label>
+          </div>
+        </div>
+
+        <!-- Tab 3: Help & Google App Password Guide -->
+        <div class="modal-body" id="tab-content-help" style="display: none;">
+          <div class="steps-box">
+            <h4 style="color: var(--accent); margin-bottom: 8px;">🔑 Why is the "Create" button missing in Google?</h4>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+              If you went to Google App Passwords and didn't see a "Create" button or got "This setting is not available":
+            </p>
+            <ol style="padding-left: 20px; line-height: 1.7; font-size: 0.85rem;">
+              <li>
+                <strong>2-Step Verification is turned OFF:</strong> Google hides the Create button until 2-Step Verification is activated.
+                <br>➔ Go to <a href="https://myaccount.google.com/signinoptions/two-step-verification" target="_blank" style="color:var(--accent);">Turn on 2-Step Verification</a>.
+              </li>
+              <li>
+                <strong>Search in Google Account:</strong> Open <a href="https://myaccount.google.com" target="_blank" style="color:var(--accent);">myaccount.google.com</a>, and in the top search bar type <code>App passwords</code>. Click on it from the search results.
+              </li>
+              <li>
+                <strong>Work / College / School Accounts:</strong> If your email ends in <code>.edu</code> or belongs to an organization, Google disables App Passwords. Use a personal <code>@gmail.com</code> account instead.
+              </li>
+              <li>
+                <strong>Type Name & Create:</strong> Once on the page, under <em>App name</em> type <code>OTP Share</code> and the blue <strong>"Create"</strong> button will light up!
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Feedback Result Banner (Always visible on all tabs) -->
+        <div id="test-conn-result" style="padding: 0 24px 10px 24px;"></div>
+
+        <!-- Pinned Sticky Footer with Buttons -->
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-test-conn" onclick="testConnection()">
+            🔌 Test IMAP Connection
+          </button>
+          <button type="submit" class="btn btn-primary" id="save-settings-btn">
+            ✨ Connect & Save Account
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PIN Lock Screen (if PIN is enabled) -->
+  <div class="pin-lock-overlay" id="pin-modal">
+    <div class="pin-lock-card">
+      <div style="font-size: 2.5rem; margin-bottom: 12px;">🔒</div>
+      <h2 style="margin-bottom: 8px; font-size: 1.25rem;">Access Protected</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+        Please enter the access PIN to view incoming OTP messages.
+      </p>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <input type="password" id="pin-input" placeholder="Enter PIN" style="text-align: center; font-size: 1.2rem; letter-spacing: 4px;">
+      </div>
+      <button class="btn btn-primary" style="width: 100%;" onclick="submitPin()">
+        Unlock Feed
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
