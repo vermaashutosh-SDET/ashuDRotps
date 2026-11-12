@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,6 +17,11 @@ from backend.config import load_settings
 from backend import parser
 
 app = FastAPI(title="OTP Share Vercel")
+
+# Mount static folder
+static_dir = BASE_DIR / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # In-memory store for serverless instance
 memory_cache = {
@@ -63,7 +68,6 @@ def fetch_from_gmail():
                 for item in fetch_data:
                     if isinstance(item, tuple) and len(item) == 2:
                         raw_header = item[1].decode("utf-8", errors="replace").lower()
-                        # Check sender filter
                         filter_terms = [s.strip().lower() for s in sender_filter.split(",") if s.strip()]
                         if not filter_terms or any(term in raw_header for term in filter_terms):
                             seq = item[0].decode().split()[0]
@@ -91,6 +95,13 @@ def fetch_from_gmail():
         print(f"IMAP on-demand error: {e}")
 
     return results
+
+@app.get("/")
+async def serve_home():
+    index_file = BASE_DIR / "static" / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    return {"message": "OTP Share Vercel Running"}
 
 @app.get("/api/status")
 async def get_status():
@@ -141,6 +152,28 @@ async def check_now(pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
     if fetched:
         memory_cache["otps"] = fetched
     return {"success": True, "new_count": len(fetched), "latest": fetched[0] if fetched else None}
+
+@app.get("/api/config")
+async def get_config():
+    cfg = load_settings()
+    return {
+        "EMAIL_USER": os.getenv("EMAIL_USER") or cfg.get("EMAIL_USER", ""),
+        "EMAIL_PASS_SET": bool(os.getenv("EMAIL_PASS") or cfg.get("EMAIL_PASS")),
+        "IMAP_HOST": os.getenv("IMAP_HOST") or cfg.get("IMAP_HOST", "imap.gmail.com"),
+        "IMAP_PORT": int(os.getenv("IMAP_PORT") or cfg.get("IMAP_PORT", 993)),
+        "IMAP_FOLDER": "INBOX",
+        "FILTER_KEYWORDS": "otp,verification,code,login,security,one-time,verify",
+        "POLL_INTERVAL": 5,
+        "MARK_AS_READ": False,
+        "SENDER_FILTER": os.getenv("SENDER_FILTER") or cfg.get("SENDER_FILTER", "indiabulls,dhani"),
+        "WEB_PIN": os.getenv("WEB_PIN") or cfg.get("WEB_PIN", "")
+    }
+
+@app.get("/api/stream")
+async def sse_stream():
+    async def event_generator():
+        yield f"event: status\ndata: {{\"status\": \"connected\"}}\n\n"
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 class TestOTPRequest(BaseModel):
     service: Optional[str] = "Indiabulls"
