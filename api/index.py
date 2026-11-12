@@ -9,11 +9,17 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
+API_DIR = Path(__file__).resolve().parent
+for p in [str(BASE_DIR), str(API_DIR)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+try:
+    import parser
+except ImportError:
+    from backend import parser
 
 from backend.config import load_settings
-from backend import parser
 
 app = FastAPI(title="OTP Share Vercel")
 
@@ -194,3 +200,12 @@ async def test_otp(req: TestOTPRequest):
     }
     memory_cache["otps"].insert(0, dummy)
     return {"success": True, "otp": dummy}
+
+@app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def catch_all(request: Request, path_name: str):
+    return {
+        "debug": True,
+        "url_path": request.url.path,
+        "path_name": path_name,
+        "scope_path": request.scope.get("path")
+    }
