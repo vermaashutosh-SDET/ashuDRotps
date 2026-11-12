@@ -5,7 +5,7 @@ import imaplib
 from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse, Response
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -93,9 +93,19 @@ def fetch_from_gmail():
 
     return results
 
+@app.get("/", response_class=HTMLResponse)
+async def serve_home():
+    for p in [Path(__file__).resolve().parent / "index.html", BASE_DIR / "index.html", BASE_DIR / "static" / "index.html"]:
+        if p.exists():
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    return HTMLResponse(content=f.read())
+            except Exception:
+                pass
+    return HTMLResponse(content="<h1>OTP Share Dashboard</h1>")
+
 @app.get("/api/status")
 @app.get("/status")
-@app.get("/")
 async def get_status():
     cfg = load_settings()
     user = os.getenv("EMAIL_USER") or cfg.get("EMAIL_USER", "")
