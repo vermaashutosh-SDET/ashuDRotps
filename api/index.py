@@ -29,6 +29,14 @@ memory_cache = {
     "last_fetch": 0
 }
 
+ALLOWED_SERVICES = ["indiabulls", "dhani", "nsdl", "cdsl"]
+
+def is_allowed_service(item):
+    if not isinstance(item, dict):
+        return False
+    combined = f"{item.get('service_tag','')} {item.get('sender_name','')} {item.get('sender_email','')} {item.get('subject','')}".lower()
+    return any(k in combined for k in ALLOWED_SERVICES)
+
 def check_pin_auth(pin: Optional[str]):
     cfg = load_settings()
     required_pin = cfg.get("WEB_PIN") or os.getenv("WEB_PIN", "")
@@ -76,14 +84,14 @@ def fetch_from_gmail(force: bool = False):
                     s_res, m_data = client.fetch(seq, "(RFC822)")
                     if s_res == "OK" and m_data and isinstance(m_data[0], tuple):
                         parsed = parser.parse_email_message(m_data[0][1], keywords, terms)
-                        if parsed:
+                        if parsed and is_allowed_service(parsed):
                             parsed["id"] = int(seq)
                             results.append(parsed)
                 except Exception:
                     continue
 
         client.logout()
-        memory_cache["otps"] = results
+        memory_cache["otps"] = [x for x in results if is_allowed_service(x)]
         memory_cache["last_fetch"] = time.time()
     except Exception as e:
         if client:
@@ -93,7 +101,7 @@ def fetch_from_gmail(force: bool = False):
                 pass
         print(f"IMAP on-demand error: {e}")
 
-    return results
+    return [x for x in results if is_allowed_service(x)]
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_home():
@@ -129,10 +137,11 @@ async def get_otps(
     check_pin_auth(pin)
     fetched = fetch_from_gmail()
     if fetched:
-        memory_cache["otps"] = fetched
+        memory_cache["otps"] = [x for x in fetched if is_allowed_service(x)]
 
-    items = memory_cache["otps"]
-    if service and service.lower() != "all":
+    # Strictly lock down: Only Indiabulls, Dhani, and NSDL / CDSL can ever be returned
+    items = [x for x in memory_cache["otps"] if is_allowed_service(x)]
+    if service and service.lower() not in ["all", ""]:
         items = [x for x in items if service.lower() in f"{x.get('service_tag','')} {x.get('sender_name','')} {x.get('subject','')}".lower()]
 
     latest = items[0] if items else None
@@ -147,13 +156,13 @@ async def get_otps(
 async def get_otp_detail(otp_id: int, pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
     check_pin_auth(pin)
     for item in memory_cache["otps"]:
-        if item.get("id") == otp_id:
+        if item.get("id") == otp_id and is_allowed_service(item):
             return item
     fetched = fetch_from_gmail()
     if fetched:
-        memory_cache["otps"] = fetched
-        for item in fetched:
-            if item.get("id") == otp_id:
+        memory_cache["otps"] = [x for x in fetched if is_allowed_service(x)]
+        for item in memory_cache["otps"]:
+            if item.get("id") == otp_id and is_allowed_service(item):
                 return item
     raise HTTPException(status_code=404, detail="OTP message not found.")
 

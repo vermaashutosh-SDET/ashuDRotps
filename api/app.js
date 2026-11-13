@@ -451,13 +451,9 @@ function escapeHtml(str) {
 // ==========================================
 // Data Fetching & Sync
 // ==========================================
-function setAppFilter(service) {
-  state.appFilter = service;
-  localStorage.setItem("otp_app_filter", service);
-  document.querySelectorAll(".filter-chip").forEach(el => {
-    const s = el.getAttribute("onclick") || "";
-    el.classList.toggle("active", s.includes(`'${service}'`));
-  });
+function setAppFilter(service = "indiabulls") {
+  state.appFilter = "indiabulls";
+  localStorage.setItem("otp_app_filter", "indiabulls");
   loadOtps();
 }
 

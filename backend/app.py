@@ -36,6 +36,14 @@ app = FastAPI(title="OTP Share Inbox", lifespan=lifespan)
 # Mount static files
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+ALLOWED_SERVICES = ["indiabulls", "dhani", "nsdl", "cdsl"]
+
+def is_allowed_service(item):
+    if not isinstance(item, dict):
+        return False
+    combined = f"{item.get('service_tag','')} {item.get('sender_name','')} {item.get('sender_email','')} {item.get('subject','')}".lower()
+    return any(k in combined for k in ALLOWED_SERVICES)
+
 def check_pin_auth(pin_header: Optional[str] = Header(None, alias="X-OTP-PIN")):
     cfg = config.load_settings()
     configured_pin = cfg.get("WEB_PIN", "").strip()
@@ -109,7 +117,10 @@ async def list_otps(
         active_service = cfg.get("SENDER_FILTER")
 
     otps = database.get_otps(limit=limit, search=search, service=active_service)
+    otps = [x for x in otps if is_allowed_service(x)]
     latest = database.get_latest_otp(service=active_service)
+    if latest and not is_allowed_service(latest):
+        latest = otps[0] if otps else None
     return {
         "otps": otps,
         "latest": latest,
@@ -121,7 +132,7 @@ async def list_otps(
 async def get_otp_detail(otp_id: int, pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
     check_pin_auth(pin)
     item = database.get_otp_by_id(otp_id)
-    if not item:
+    if not item or not is_allowed_service(item):
         raise HTTPException(status_code=404, detail="OTP message not found.")
     return item
 

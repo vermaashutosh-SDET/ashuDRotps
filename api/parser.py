@@ -29,6 +29,8 @@ KNOWN_SERVICES = [
     ("coinbase", "Coinbase"),
     ("indiabulls", "Indiabulls"),
     ("dhani", "Indiabulls"),
+    ("nsdl", "NSDL"),
+    ("cdsl", "CDSL"),
     ("zomato", "Zomato"),
     ("swiggy", "Swiggy"),
     ("flipkart", "Flipkart"),
@@ -299,9 +301,14 @@ def parse_email_message(raw_bytes: bytes, keywords: List[str], sender_filter: Op
     # Detect service / sender tag
     service_tag = detect_service_tag(sender_name, sender_email, subject)
 
+    # Hard privacy lock: ONLY Indiabulls, Dhani, NSDL, or CDSL messages allowed
+    combined_sender = f"{service_tag} {sender_name} {sender_email} {subject}".lower()
+    allowed_services = ["indiabulls", "dhani", "nsdl", "cdsl"]
+    if not any(target in combined_sender for target in allowed_services):
+        return None
+
     # Check sender / app filter if configured (e.g. only Indiabulls)
     if sender_filter:
-        combined_sender = f"{service_tag} {sender_name} {sender_email} {subject}".lower()
         if not any(target.strip().lower() in combined_sender for target in sender_filter if target.strip()):
             return None
 
