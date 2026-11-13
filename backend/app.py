@@ -101,6 +101,7 @@ async def get_service_status():
     status = fetcher_service.get_status_summary()
     status["has_pin"] = bool(cfg.get("WEB_PIN"))
     status["email_configured"] = bool(cfg.get("EMAIL_USER") and cfg.get("EMAIL_PASS"))
+    status["phone_number"] = "7830531446"
     return status
 
 @app.get("/api/otps")

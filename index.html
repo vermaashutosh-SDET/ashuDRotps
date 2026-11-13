@@ -21,6 +21,7 @@
           </div>
           <div>
             <div class="brand-title">OTP Share</div>
+            <div style="font-size: 0.725rem; color: var(--accent); font-weight: 600; letter-spacing: 0.5px;">📱 +91 7830531446</div>
           </div>
         </a>
 
@@ -29,6 +30,12 @@
           <span class="status-dot" id="status-dot"></span>
           <span id="status-text">Connecting...</span>
           <span id="monitored-email" style="color: var(--text-muted); font-size: 0.775rem;"></span>
+        </div>
+
+        <!-- Phone Badge Pill -->
+        <div class="phone-pill" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 999px; font-size: 0.8rem; color: #38bdf8; font-weight: 600;">
+          <span>📱</span>
+          <span>+91 7830531446</span>
         </div>
       </div>
 
@@ -83,11 +90,17 @@
     </section>
 
     <!-- Exclusive Protected App Filter -->
-    <div class="filter-chips-wrapper">
-      <span class="filter-label">App Filter:</span>
-      <button class="filter-chip active" id="chip-indiabulls" style="cursor: default;">
-        🔒 Indiabulls & NSDL Only (Protected)
-      </button>
+    <div class="filter-chips-wrapper" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="filter-label">App Filter:</span>
+        <button class="filter-chip active" id="chip-indiabulls" style="cursor: default;">
+          🔒 Indiabulls & NSDL Only (Protected)
+        </button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 0.825rem; color: var(--text-secondary); background: var(--bg-card); padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border-color);">
+        <span>📱 Linked Mobile:</span>
+        <strong style="color: #ffffff; font-family: var(--font-mono, monospace); letter-spacing: 0.5px;">+91 7830531446</strong>
+      </div>
     </div>
 
     <!-- Toolbar: Search & Actions -->
@@ -128,6 +141,9 @@
       </div>
       <div class="service-badge" id="popup-service-badge" style="margin-bottom: 8px;">
         Indiabulls
+      </div>
+      <div style="font-size: 0.8rem; color: var(--accent); margin-bottom: 8px; font-weight: 600;">
+        📱 Recipient Mobile: +91 7830531446
       </div>
       <h2 style="font-size: 1.25rem; font-weight: 700; color: #ffffff; margin-bottom: 4px;" id="popup-subject">
         New OTP Received

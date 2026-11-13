@@ -122,6 +122,7 @@ async def get_status():
     return {
         "status": "connected" if user else "unconfigured",
         "monitored_email": user,
+        "phone_number": "7830531446",
         "unread_count": 0,
         "connected": bool(user),
         "has_pin": bool(os.getenv("WEB_PIN") or cfg.get("WEB_PIN")),

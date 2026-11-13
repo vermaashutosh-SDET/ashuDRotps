@@ -324,7 +324,10 @@ function renderHero() {
         <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent);"></span>
         LATEST VERIFICATION CODE
       </div>
-      <div class="hero-time" id="hero-time-ago">${formatTimeAgo(item.received_at || item.created_at)}</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:0.775rem; color:var(--accent); background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.25); padding:2px 9px; border-radius:999px; font-weight:600;">📱 7830531446</span>
+        <div class="hero-time" id="hero-time-ago">${formatTimeAgo(item.received_at || item.created_at)}</div>
+      </div>
     </div>
     <div class="hero-body">
       <div class="hero-info">
@@ -708,6 +711,9 @@ async function openEmailModal(id) {
           </div>
           <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
             Received: ${escapeHtml(formatLocalDateTime(email.received_at || email.created_at))}
+          </div>
+          <div style="font-size:0.8rem; color:var(--accent); margin-top:3px; font-weight:600;">
+            📱 Mobile: +91 7830531446
           </div>
         </div>
         ${email.otp_code ? `
