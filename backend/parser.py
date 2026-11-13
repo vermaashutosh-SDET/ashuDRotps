@@ -225,9 +225,7 @@ def parse_email_message(raw_bytes: bytes, keywords: List[str], sender_filter: Op
     if date_header:
         try:
             dt = parsedate_to_datetime(date_header)
-            if dt.tzinfo:
-                dt = dt.astimezone()  # Convert to system local timezone (e.g. IST)
-            received_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+            received_at = dt.isoformat()
         except Exception:
             pass
 

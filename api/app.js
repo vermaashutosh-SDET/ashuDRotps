@@ -178,15 +178,20 @@ async function apiFetch(endpoint, options = {}) {
 }
 
 // ==========================================
-// Time Ago Formatter
+// Time Ago & Date Formatters
 // ==========================================
 function formatTimeAgo(dateString) {
   if (!dateString) return "just now";
-  const date = new Date(dateString.replace(" ", "T"));
+  let normalized = dateString.replace(" ", "T");
+  // If naive timestamp without timezone offset, treat as UTC from server
+  if (!normalized.includes("Z") && !normalized.includes("+") && !normalized.includes("-", 10)) {
+    normalized += "Z";
+  }
+  const date = new Date(normalized);
   const now = new Date();
   const diffSec = Math.floor((now - date) / 1000);
 
-  if (diffSec <= 10) return "just now";
+  if (diffSec < 0 || diffSec <= 10) return "just now";
   if (diffSec < 60) return `${diffSec}s ago`;
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;
@@ -194,6 +199,25 @@ function formatTimeAgo(dateString) {
   if (diffHour < 24) return `${diffHour}h ago`;
   const diffDays = Math.floor(diffHour / 24);
   return `${diffDays}d ago`;
+}
+
+function formatLocalDateTime(dateString) {
+  if (!dateString) return "";
+  try {
+    let normalized = dateString.replace(" ", "T");
+    if (!normalized.includes("Z") && !normalized.includes("+") && !normalized.includes("-", 10)) {
+      normalized += "Z";
+    }
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) return dateString;
+    return d.toLocaleString([], {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: true
+    });
+  } catch (e) {
+    return dateString;
+  }
 }
 
 // ==========================================
@@ -687,7 +711,7 @@ async function openEmailModal(id) {
             From: <strong>${escapeHtml(email.sender_name)}</strong> &lt;${escapeHtml(email.sender_email)}&gt;
           </div>
           <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">
-            Received: ${escapeHtml(email.received_at || email.created_at)}
+            Received: ${escapeHtml(formatLocalDateTime(email.received_at || email.created_at))}
           </div>
         </div>
         ${email.otp_code ? `
