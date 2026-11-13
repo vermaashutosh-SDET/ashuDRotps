@@ -217,5 +217,6 @@ async def catch_all(request: Request, path_name: str):
         "debug": True,
         "url_path": request.url.path,
         "path_name": path_name,
-        "scope_path": request.scope.get("path")
+        "scope_path": request.scope.get("path"),
+        "headers": dict(request.headers)
     }
