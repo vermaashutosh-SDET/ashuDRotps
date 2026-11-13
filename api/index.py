@@ -55,23 +55,20 @@ def fetch_from_gmail():
         client.login(user, password)
         client.select("INBOX", readonly=True)
 
-        status, res = client.status("INBOX", "(MESSAGES)")
-        if status == "OK" and res and res[0]:
-            total = int(res[0].decode().split()[2].rstrip(")"))
-            start = max(1, total - 14)
-            status, fetch_data = client.fetch(f"{start}:{total}", "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID)])")
-            
-            matching_seqs = []
-            if status == "OK" and fetch_data:
-                for item in fetch_data:
-                    if isinstance(item, tuple) and len(item) == 2:
-                        raw_header = item[1].decode("utf-8", errors="replace").lower()
-                        filter_terms = [s.strip().lower() for s in sender_filter.split(",") if s.strip()]
-                        if not filter_terms or any(term in raw_header for term in filter_terms):
-                            seq = item[0].decode().split()[0]
-                            matching_seqs.append(seq)
+        # Search directly for matching sender emails
+        search_criteria = 'OR FROM indiabulls FROM dhani'
+        if sender_filter:
+            terms = [s.strip() for s in sender_filter.split(",") if s.strip()]
+            if len(terms) == 1:
+                search_criteria = f'FROM "{terms[0]}"'
+            elif len(terms) >= 2:
+                search_criteria = f'OR FROM "{terms[0]}" FROM "{terms[1]}"'
 
-            for seq in reversed(matching_seqs[-5:]):
+        status, data = client.search(None, search_criteria)
+        if status == "OK" and data and data[0]:
+            matching_seqs = data[0].split()[-6:]
+            for seq_bytes in reversed(matching_seqs):
+                seq = seq_bytes.decode()
                 try:
                     s_res, m_data = client.fetch(seq, "(RFC822)")
                     if s_res == "OK" and m_data and isinstance(m_data[0], tuple):
