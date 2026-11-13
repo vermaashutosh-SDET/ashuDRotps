@@ -1048,8 +1048,21 @@ document.addEventListener("DOMContentLoaded", () => {
   loadOtps();
   initSSE();
 
-  // Real-time auto-sync every 2 seconds
-  setInterval(loadOtps, 2000);
+  // Real-time auto-sync: safe non-overlapping poll
+  let isPolling = false;
+  async function pollLoop() {
+    if (!isPolling && !document.hidden) {
+      isPolling = true;
+      try {
+        await loadOtps();
+      } catch (err) {
+      } finally {
+        isPolling = false;
+      }
+    }
+    setTimeout(pollLoop, 2500);
+  }
+  pollLoop();
 
   // Instant refresh when user switches back to tab or unlocks device
   window.addEventListener("focus", () => {

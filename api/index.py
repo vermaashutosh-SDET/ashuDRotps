@@ -35,8 +35,13 @@ def check_pin_auth(pin: Optional[str]):
     if required_pin and pin != required_pin:
         raise HTTPException(status_code=401, detail="PIN required or invalid")
 
-def fetch_from_gmail():
-    """Fetch latest OTP emails directly from Gmail via IMAP on-demand."""
+def fetch_from_gmail(force: bool = False):
+    """Fetch latest OTP emails directly from Gmail via IMAP on-demand with caching."""
+    import time
+    now_ts = time.time()
+    if not force and memory_cache["otps"] and (now_ts - memory_cache.get("last_fetch", 0) < 3.0):
+        return memory_cache["otps"]
+
     cfg = load_settings()
     user = os.getenv("EMAIL_USER") or cfg.get("EMAIL_USER")
     password = os.getenv("EMAIL_PASS") or cfg.get("EMAIL_PASS")
@@ -55,24 +60,22 @@ def fetch_from_gmail():
         client.login(user, password)
         client.select("INBOX", readonly=True)
 
-        # Search directly for matching sender emails
-        search_criteria = 'OR FROM indiabulls FROM dhani'
-        if sender_filter:
-            terms = [s.strip() for s in sender_filter.split(",") if s.strip()]
-            if len(terms) == 1:
-                search_criteria = f'FROM "{terms[0]}"'
-            elif len(terms) >= 2:
-                search_criteria = f'OR FROM "{terms[0]}" FROM "{terms[1]}"'
+        # Build robust IMAP search criteria that captures Indiabulls, Dhani, and NSDL / Demat mandate OTPs
+        terms = [s.strip().lower() for s in sender_filter.split(",") if s.strip()]
+        if any(t in ["indiabulls", "dhani"] for t in terms) and "nsdl" not in terms:
+            terms.extend(["nsdl", "cdsl"])
+
+        search_criteria = 'OR (OR FROM indiabulls FROM dhani) (OR (OR FROM nsdl FROM cdsl) SUBJECT indiabulls)'
 
         status, data = client.search(None, search_criteria)
         if status == "OK" and data and data[0]:
-            matching_seqs = data[0].split()[-6:]
+            matching_seqs = data[0].split()[-8:]
             for seq_bytes in reversed(matching_seqs):
                 seq = seq_bytes.decode()
                 try:
                     s_res, m_data = client.fetch(seq, "(RFC822)")
                     if s_res == "OK" and m_data and isinstance(m_data[0], tuple):
-                        parsed = parser.parse_email_message(m_data[0][1], keywords, [s.strip().lower() for s in sender_filter.split(",") if s.strip()])
+                        parsed = parser.parse_email_message(m_data[0][1], keywords, terms)
                         if parsed:
                             parsed["id"] = int(seq)
                             results.append(parsed)
@@ -80,6 +83,8 @@ def fetch_from_gmail():
                     continue
 
         client.logout()
+        memory_cache["otps"] = results
+        memory_cache["last_fetch"] = time.time()
     except Exception as e:
         if client:
             try:
@@ -171,7 +176,7 @@ async def clear_all_otps(pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
 @app.post("/check-now")
 async def check_now(pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
     check_pin_auth(pin)
-    fetched = fetch_from_gmail()
+    fetched = fetch_from_gmail(force=True)
     if fetched:
         memory_cache["otps"] = fetched
     return {"success": True, "new_count": len(fetched), "latest": fetched[0] if fetched else None}
