@@ -437,16 +437,35 @@ function setAppFilter(service) {
   loadOtps();
 }
 
+// Deleted IDs Helper for persistent deletion
+function getDeletedIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem("otp_deleted_ids") || "[]"));
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function addDeletedId(id) {
+  try {
+    const set = getDeletedIds();
+    set.add(String(id));
+    localStorage.setItem("otp_deleted_ids", JSON.stringify([...set]));
+  } catch (e) {}
+}
+
 async function loadOtps() {
   try {
     const filterParam = (state.appFilter && state.appFilter !== "all") ? `?service=${encodeURIComponent(state.appFilter)}` : "";
     const res = await apiFetch(`/api/otps${filterParam}`);
     const data = await res.json();
-    state.otps = data.otps || [];
-    const newLatest = data.latest || (state.otps.find(x => x.otp_code) || state.otps[0] || null);
+    const rawOtps = data.otps || [];
+    const deletedSet = getDeletedIds();
+    state.otps = rawOtps.filter(x => !deletedSet.has(String(x.id)) && !deletedSet.has(Number(x.id)));
+    const newLatest = data.latest && !deletedSet.has(String(data.latest.id)) ? data.latest : (state.otps.find(x => x.otp_code) || state.otps[0] || null);
 
-    // If a brand new OTP arrives after initial load, pop it up front-and-center
-    if (state.lastSeenOtpId !== null && newLatest && newLatest.id !== state.lastSeenOtpId) {
+    // ONLY pop up if a strictly NEWER OTP arrives (higher ID), never when deleting or loading past OTPs
+    if (state.lastSeenOtpId !== null && newLatest && newLatest.id > state.lastSeenOtpId) {
       if (state.autoPopup && newLatest.otp_code) {
         showOtpPopup(newLatest);
         playChime();
@@ -598,19 +617,36 @@ async function sendTestOtp(service = null) {
 
 async function deleteOtp(id) {
   if (!confirm("Are you sure you want to delete this OTP?")) return;
+  
+  // Track deleted in localStorage
+  addDeletedId(id);
+
+  // Remove from local state immediately
+  state.otps = state.otps.filter(x => x.id !== id && String(x.id) !== String(id));
+  state.latestOtp = state.otps.length > 0 ? (state.otps.find(x => x.otp_code) || state.otps[0]) : null;
+  if (state.latestOtp) {
+    state.lastSeenOtpId = state.latestOtp.id;
+  }
+
+  renderHero();
+  renderOtpList();
+  showToast("OTP deleted", "info");
+
   try {
     await apiFetch(`/api/otps/${id}`, { method: "DELETE" });
-    showToast("OTP deleted", "info");
-  } catch (err) {
-    showToast("Failed to delete OTP", "error");
-  }
+  } catch (err) {}
 }
 
 async function clearAllOtps() {
   if (!confirm("Are you sure you want to clear ALL OTP messages?")) return;
   try {
-    await apiFetch("/api/otps/clear", { method: "POST" });
+    state.otps.forEach(x => addDeletedId(x.id));
+    state.otps = [];
+    state.latestOtp = null;
+    renderHero();
+    renderOtpList();
     showToast("All OTP messages cleared", "info");
+    await apiFetch("/api/otps/clear", { method: "POST" });
   } catch (err) {
     showToast("Failed to clear OTPs", "error");
   }
@@ -624,12 +660,23 @@ async function openEmailModal(id) {
   const modalContent = document.getElementById("email-modal-body");
   if (!modal || !modalContent) return;
 
-  modalContent.innerHTML = `<div style="text-align: center; padding: 30px;">Loading message details...</div>`;
-  modal.classList.add("active");
+  // First check if email is already in state.otps for instant render
+  let email = state.otps.find(x => x.id === id || String(x.id) === String(id));
 
+  if (!email) {
+    modalContent.innerHTML = `<div style="text-align: center; padding: 30px;">Loading message details...</div>`;
+    modal.classList.add("active");
+    try {
+      const res = await apiFetch(`/api/otps/${id}`);
+      email = await res.json();
+    } catch (err) {
+      modalContent.innerHTML = `<div style="color:var(--danger); padding:20px;">Failed to load email details.</div>`;
+      return;
+    }
+  }
+
+  modal.classList.add("active");
   try {
-    const res = await apiFetch(`/api/otps/${id}`);
-    const email = await res.json();
 
     modalContent.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">

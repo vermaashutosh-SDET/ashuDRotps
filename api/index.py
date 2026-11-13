@@ -144,7 +144,28 @@ async def get_otp_detail(otp_id: int, pin: Optional[str] = Header(None, alias="X
     for item in memory_cache["otps"]:
         if item.get("id") == otp_id:
             return item
+    fetched = fetch_from_gmail()
+    if fetched:
+        memory_cache["otps"] = fetched
+        for item in fetched:
+            if item.get("id") == otp_id:
+                return item
     raise HTTPException(status_code=404, detail="OTP message not found.")
+
+@app.delete("/api/otps/{otp_id}")
+@app.delete("/otps/{otp_id}")
+async def delete_otp_item(otp_id: int, pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
+    check_pin_auth(pin)
+    memory_cache["otps"] = [x for x in memory_cache["otps"] if x.get("id") != otp_id]
+    return {"success": True, "id": otp_id}
+
+@app.post("/api/otps/clear")
+@app.post("/otps/clear")
+async def clear_all_otps(pin: Optional[str] = Header(None, alias="X-OTP-PIN")):
+    check_pin_auth(pin)
+    count = len(memory_cache["otps"])
+    memory_cache["otps"] = []
+    return {"success": True, "cleared_count": count}
 
 @app.post("/api/check-now")
 @app.post("/check-now")
@@ -227,7 +248,18 @@ async def catch_all(request: Request, path_name: str):
                     return Response(content=f.read(), media_type="application/javascript")
         return Response(content="", media_type="application/javascript")
 
-    if "status" in endpoint or path.endswith("/status"):
+    if "otps/" in endpoint or "otps/" in path:
+        import re
+        m = re.search(r"otps/(\d+)", endpoint or path)
+        if m:
+            oid = int(m.group(1))
+            if request.method == "DELETE":
+                return await delete_otp_item(oid)
+            else:
+                return await get_otp_detail(oid)
+    elif "otps/clear" in endpoint or "otps/clear" in path:
+        return await clear_all_otps()
+    elif "status" in endpoint or path.endswith("/status"):
         return await get_status()
     elif "otps" in endpoint or "otps" in path:
         service = request.query_params.get("service")
