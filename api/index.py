@@ -213,10 +213,28 @@ async def test_otp(req: TestOTPRequest):
 
 @app.api_route("/{path_name:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def catch_all(request: Request, path_name: str):
-    return {
-        "debug": True,
-        "url_path": request.url.path,
-        "path_name": path_name,
-        "scope_path": request.scope.get("path"),
-        "headers": dict(request.headers)
-    }
+    endpoint = (request.query_params.get("endpoint") or "").lower()
+    path = request.url.path.lower()
+
+    if "status" in endpoint or path.endswith("/status"):
+        return await get_status()
+    elif "otps" in endpoint or "otps" in path:
+        service = request.query_params.get("service")
+        pin = request.headers.get("x-otp-pin")
+        return await get_otps(service=service, pin=pin)
+    elif "config" in endpoint or path.endswith("/config"):
+        return await get_config()
+    elif "check-now" in endpoint or path.endswith("/check-now"):
+        pin = request.headers.get("x-otp-pin")
+        return await check_now(pin=pin)
+    elif "test-otp" in endpoint or path.endswith("/test-otp"):
+        try:
+            body = await request.json()
+            return await test_otp(TestOTPRequest(**body))
+        except Exception:
+            return await test_otp(TestOTPRequest())
+    elif "stream" in endpoint or path.endswith("/stream"):
+        return await sse_stream()
+
+    # Default to serving the HTML dashboard
+    return await serve_home()
