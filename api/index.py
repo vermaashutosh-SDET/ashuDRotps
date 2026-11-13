@@ -213,6 +213,20 @@ async def catch_all(request: Request, path_name: str):
     endpoint = (request.query_params.get("endpoint") or "").lower()
     path = request.url.path.lower()
 
+    if "style.css" in path or "style.css" in endpoint:
+        for p in [Path(__file__).resolve().parent / "style.css", BASE_DIR / "static" / "style.css"]:
+            if p.exists():
+                with open(p, "r", encoding="utf-8") as f:
+                    return Response(content=f.read(), media_type="text/css")
+        return Response(content="", media_type="text/css")
+
+    if "app.js" in path or "app.js" in endpoint:
+        for p in [Path(__file__).resolve().parent / "app.js", BASE_DIR / "static" / "app.js"]:
+            if p.exists():
+                with open(p, "r", encoding="utf-8") as f:
+                    return Response(content=f.read(), media_type="application/javascript")
+        return Response(content="", media_type="application/javascript")
+
     if "status" in endpoint or path.endswith("/status"):
         return await get_status()
     elif "otps" in endpoint or "otps" in path:
